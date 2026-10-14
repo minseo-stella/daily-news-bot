@@ -59,8 +59,9 @@ def generate_news_summary(wsj_news, bbc_news):
     {bbc_news}
     """
     
+    # 모델명을 gemini-3.8-flash로 지정
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=prompt
     )
     return response.text
