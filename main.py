@@ -3,8 +3,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import feedparser
-import google.generativeai as genai
+from google import genai
 
+# 1. WSJ 및 BBC RSS 뉴스 수집
 def get_rss_news():
     wsj_url = "https://feeds.a1.wsj.net/xml/rss/3_7085.xml"
     bbc_url = "http://feeds.bbci.co.uk/news/rss.xml"
@@ -17,11 +18,10 @@ def get_rss_news():
     
     return wsj_text, bbc_text
 
+# 2. 최신 google-genai SDK로 요약 생성
 def generate_news_summary(wsj_news, bbc_news):
     gemini_api_key = os.getenv("GEMINI_API_KEY")
-    genai.configure(api_key=gemini_api_key)
-    
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    client = genai.Client(api_key=gemini_api_key)
     
     prompt = f"""
     You are a professional news analyst and English teacher.
@@ -59,9 +59,13 @@ def generate_news_summary(wsj_news, bbc_news):
     {bbc_news}
     """
     
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
     return response.text
 
+# 3. 내 Gmail로 이메일 발송
 def send_email(content):
     sender_email = os.getenv("SENDER_EMAIL")
     app_password = os.getenv("GMAIL_APP_PASSWORD")
