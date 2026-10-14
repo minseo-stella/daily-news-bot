@@ -1,0 +1,27 @@
+name: Daily News Summary Email
+
+on:
+  schedule:
+    # UTC 00:00 = KST 매일 아침 09:00
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 수동 실행 테스트용
+
+jobs:
+  run-news-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          pip install feedparser google-generativeai
+      - name: Run Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        run: python main.py
