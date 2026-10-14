@@ -1,9 +1,11 @@
 import os
 import smtplib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import feedparser
 from google import genai
+from google.genai import errors
 
 # 1. WSJ 및 BBC RSS 뉴스 수집
 def get_rss_news():
@@ -18,7 +20,7 @@ def get_rss_news():
     
     return wsj_text, bbc_text
 
-# 2. 최신 google-genai SDK로 요약 생성
+# 2. 예외 처리 & 자동 재시도(Retry) & 백업 모델이 포함된 요약 함수
 def generate_news_summary(wsj_news, bbc_news):
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     client = genai.Client(api_key=gemini_api_key)
@@ -32,15 +34,15 @@ def generate_news_summary(wsj_news, bbc_news):
 
     - 월스트리트 저널 (WSJ) Top 5
     1) [English Title]
-    EN summary: [3-line English summary]
-    KO summary: [3-line Korean summary]
+    EN summary: [2-line English summary]
+    KO summary: [2-line Korean summary]
     key point: [Insight / Implications / What to notice in Korean]
     (Repeat for 5 WSJ articles)
 
     - BBC Top 5
     1) [English Title]
-    EN summary: [3-line English summary]
-    KO summary: [3-line Korean summary]
+    EN summary: [2-line English summary]
+    KO summary: [2-line Korean summary]
     key point: [Insight / Implications / What to notice in Korean]
     (Repeat for 5 BBC articles)
 
@@ -59,12 +61,26 @@ def generate_news_summary(wsj_news, bbc_news):
     {bbc_news}
     """
     
-    # 모델명을 gemini-3.8-flash로 지정
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt
-    )
-    return response.text
+    # 정식 지원되는 구글 최신/안정 모델 목록만 배치
+    candidate_models = ["gemini-3.8-flash", "gemini-1.5-flash", "gemini-2.0-flash"]
+    
+    for model_name in candidate_models:
+        for attempt in range(3): # 서버 과부하(503) 발생 시 최대 3회 재시도
+            try:
+                print(f"호출 시도 중... 모델: {model_name} (시도 {attempt + 1}/3)")
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                return response.text
+            except (errors.ServerError, errors.APIError) as e:
+                print(f"경고: {model_name} 서버 지연 발생 ({e}). 5초 후 재시도...")
+                time.sleep(5)
+            except Exception as e:
+                print(f"{model_name} 사용 불가: {e}. 다음 백업 모델로 이동합니다.")
+                break
+                
+    raise RuntimeError("모든 Gemini 모델 호출에 실패했습니다.")
 
 # 3. 내 Gmail로 이메일 발송
 def send_email(content):
